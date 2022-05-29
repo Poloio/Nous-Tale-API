@@ -1,7 +1,10 @@
 ﻿using Microsoft.AspNetCore.SignalR;
+using Newtonsoft.Json;
 using Nous_Tale_API.Model;
 using Nous_Tale_API.Model.Entities;
+using Nous_Tale_API.Model.ViewModels;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -17,7 +20,7 @@ namespace Nous_Tale_API.Controllers
                 .Select(s => s[random.Next(s.Length)]).ToArray());
         }
 
-        public async Task CreateRoom(string hostName, int maxPlayers, string password )
+        public async Task<int> CreateRoom(int maxPlayers, string password)
         {
             int roomID;
             using (var context = new NousContext())
@@ -38,22 +41,23 @@ namespace Nous_Tale_API.Controllers
                 newRoom.Code = GenerateUniqueRoomCode();
                 await rooms.AddAsync(newRoom);
                 await context.SaveChangesAsync();
-
-                roomID = newRoom.ID; // To call client method
+                roomID = newRoom.ID;
+                
             }
+            return roomID;
 
-            await EnterRoom(hostName, roomID);
         }
 
-        public async Task EnterRoom(string playerName, int roomID)
+        public async Task<List<PlayerVM>> EnterRoom(string playerName, int roomID)
         {
-            using (var dbConhtext = new NousContext())
+            using (var dbContext = new NousContext())
             {
+                // Create and add caller player
                 var newPlayer = new Player();
                 newPlayer.Name = playerName;
                 newPlayer.RoomID = roomID;
 
-                var targetRoom = await dbConhtext.Rooms.FindAsync(roomID);
+                var targetRoom = await dbContext.Rooms.FindAsync(roomID);
                 
                 if (targetRoom.Players == null)
                 {
@@ -64,18 +68,32 @@ namespace Nous_Tale_API.Controllers
                     newPlayer.IsHost = targetRoom.Players.Count == 0;
                 }
 
-                await dbConhtext.Players.AddAsync(newPlayer);
-                await dbConhtext.SaveChangesAsync();
-
-                // Add to SignalR group
-                await Groups.AddToGroupAsync(Context.ConnectionId, $"room{roomID}");
-
-                await Clients.Caller.EnterRoom(newPlayer.Room);
+                await dbContext.Players.AddAsync(newPlayer);
+                await dbContext.SaveChangesAsync();
 
                 // Notify group that player entered
                 await Clients.Group($"room{roomID}")
                     .PlayerEntered(newPlayer);
+
+                // VM to avoid circular references
+                var vmList = new List<PlayerVM>();
+                foreach (var player in targetRoom.Players)
+                {
+                    var newVmPlayer = new PlayerVM();
+                    newVmPlayer.Name = player.Name;
+                    newVmPlayer.RoomID = player.RoomID;
+                    newVmPlayer.ID = player.ID;
+                    newVmPlayer.IsHost = player.IsHost;
+                    vmList.Add(newVmPlayer);
+                }
+                return vmList;
             }
+         }
+
+        public async Task ConnectToGroup(int roomID)
+        {
+            // Add to SignalR group
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"room{roomID}");
         }
 
         public async Task ExitRoom(int playerID)

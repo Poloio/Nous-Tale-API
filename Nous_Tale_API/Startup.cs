@@ -1,3 +1,4 @@
+using Microsoft.AspNet.SignalR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
@@ -31,15 +32,19 @@ namespace Nous_Tale_API
             services.AddControllers();
             services.AddDbContext<NousContext>();
             services.AddEntityFrameworkSqlServer();
-            services.AddSignalR();
+            services.AddSignalR(options =>
+            {
+                options.EnableDetailedErrors = true;
+            });
+
             Seed(services);
         }
 
         private static void Seed(IServiceCollection services)
         {
             ServiceProvider serviceProvider = services.BuildServiceProvider();
-            var TournamentDb = serviceProvider.GetRequiredService<NousContext>();
-            DbInitializer.Initialize(TournamentDb);
+            var dbcontext = serviceProvider.GetRequiredService<NousContext>();
+            DbInitializer.Initialize(dbcontext);
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
