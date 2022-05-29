@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using Nous_Tale_API.Model.Entities;
+using System.Threading.Tasks;
 
 namespace Nous_Tale_API.Controllers
 {
@@ -7,6 +8,10 @@ namespace Nous_Tale_API.Controllers
     /// </summary>
     public interface IPlayerClient
     {
-        Task EnterRoom(int RoomID);
+        // Room methods
+        Task EnterRoom(Room room);
+        Task ReturnToMenu();
+        Task PlayerExited(int playerID);
+        Task PlayerEntered(Player playerID);
     }
 }

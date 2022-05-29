@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Nous_Tale_API.Model;
+using Nous_Tale_API.Model.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -41,6 +42,13 @@ namespace Nous_Tale_API
                 {
                     var logger = services.GetRequiredService<ILogger<Program>>();
                     logger.LogError(ex, "An error occurred creating the DB.");
+                }
+
+                using (var context = new NousContext())
+                {
+                    var room = new Room();
+                    context.Rooms.Add(room);
+                    context.SaveChanges();
                 }
             }
         }

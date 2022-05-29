@@ -32,6 +32,14 @@ namespace Nous_Tale_API
             services.AddDbContext<NousContext>();
             services.AddEntityFrameworkSqlServer();
             services.AddSignalR();
+            Seed(services);
+        }
+
+        private static void Seed(IServiceCollection services)
+        {
+            ServiceProvider serviceProvider = services.BuildServiceProvider();
+            var TournamentDb = serviceProvider.GetRequiredService<NousContext>();
+            DbInitializer.Initialize(TournamentDb);
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -51,7 +59,7 @@ namespace Nous_Tale_API
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
-                endpoints.MapHub<SessionHub>("/session");
+                endpoints.MapHub<SessionHub>("/sessions");
             });
         }
     }

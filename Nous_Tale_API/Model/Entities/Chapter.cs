@@ -2,9 +2,9 @@
 {
     public class Chapter
     {
-        public int ChapterID { get; set; }
+        public int ID { get; set; }
         public int TaleID { get; set; }
-        public int PlayerID { get; set; }
+        public int? PlayerID { get; set; }
         public int OrderNo { get; set; }
         public string Text { get; set; }
         // Mood?

@@ -1,4 +1,6 @@
-﻿namespace Nous_Tale_API.Model
+﻿using Microsoft.Extensions.DependencyInjection;
+
+namespace Nous_Tale_API.Model
 {
     public static class DbInitializer
     {
