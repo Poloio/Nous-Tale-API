@@ -16,84 +16,83 @@ namespace Nous_Tale_API.Controllers
         {
             var random = new Random();
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-            return new string(Enumerable.Repeat(chars, 10)
+            string code = new string(Enumerable.Repeat(chars, 10)
                 .Select(s => s[random.Next(s.Length)]).ToArray());
+
+            using (var context = new NousContext())
+            {
+                bool codeAlreadyExists = context.Rooms.Where(r => r.Code == code).Any();
+                if (codeAlreadyExists)
+                    code = GenerateUniqueRoomCode();
+            }
+
+            return code;
         }
 
-        public async Task<int> CreateRoom(int maxPlayers, string password)
+        public async Task<string> CreateRoom(int maxPlayers, string password)
         {
-            int roomID;
+            string roomCode;
             using (var context = new NousContext())
             {
                 // Create Room
                 var rooms = context.Rooms;
-                var newRoom = new Room();
+                var newRoom = new Room()
+                {
+                    Password = password,
+                    IsPrivate = password != null,
+                    MaxPlayers = maxPlayers,
+                    Code = GenerateUniqueRoomCode()
+                };
 
-                if (password != null)
-                {
-                    newRoom.Password = password;
-                    newRoom.IsPrivate = true;
-                } else
-                {
-                    newRoom.IsPrivate = false;
-                }
-                newRoom.MaxPlayers = maxPlayers;
-                newRoom.Code = GenerateUniqueRoomCode();
                 await rooms.AddAsync(newRoom);
                 await context.SaveChangesAsync();
-                roomID = newRoom.ID;
-                
+                roomCode = newRoom.Code;
             }
-            return roomID;
-
+            return roomCode;
         }
 
-        public async Task<List<PlayerVM>> EnterRoom(string playerName, int roomID)
+        public async Task<List<PlayerVM>> EnterRoom(string playerName, string roomCode)
         {
             using (var dbContext = new NousContext())
             {
                 // Create and add caller player
-                var newPlayer = new Player();
-                newPlayer.Name = playerName;
-                newPlayer.RoomID = roomID;
 
-                var targetRoom = await dbContext.Rooms.FindAsync(roomID);
-                
-                if (targetRoom.Players == null)
+                var targetRoom = dbContext.Rooms.First(r => r.Code == roomCode);
+
+                var newPlayer = new Player()
                 {
-                    newPlayer.IsHost = true;
-                } 
-                else 
-                {
-                    newPlayer.IsHost = targetRoom.Players.Count == 0;
-                }
+                    Name = playerName,
+                    RoomID = targetRoom.ID,
+                    IsHost = targetRoom.Players == null || targetRoom.Players.Count() == 0
+                };
 
                 await dbContext.Players.AddAsync(newPlayer);
                 await dbContext.SaveChangesAsync();
 
                 // Notify group that player entered
-                await Clients.Group($"room{roomID}")
+                await Clients.Group($"room{roomCode}")
                     .PlayerEntered(newPlayer);
 
                 // VM to avoid circular references
                 var vmList = new List<PlayerVM>();
                 foreach (var player in targetRoom.Players)
                 {
-                    var newVmPlayer = new PlayerVM();
-                    newVmPlayer.Name = player.Name;
-                    newVmPlayer.RoomID = player.RoomID;
-                    newVmPlayer.ID = player.ID;
-                    newVmPlayer.IsHost = player.IsHost;
+                    var newVmPlayer = new PlayerVM()
+                    {
+                        Name = player.Name,
+                        RoomID = player.ID,
+                        ID = player.ID,
+                        IsHost = player.IsHost
+                    };
                     vmList.Add(newVmPlayer);
                 }
                 return vmList;
             }
          }
 
-        public async Task ConnectToGroup(int roomID)
+        public async Task ConnectToGroup(string roomCode)
         {
-            // Add to SignalR group
-            await Groups.AddToGroupAsync(Context.ConnectionId, $"room{roomID}");
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"room{roomCode}");
         }
 
         public async Task ExitRoom(int playerID)
@@ -103,12 +102,18 @@ namespace Nous_Tale_API.Controllers
                 // Delete player
                 var deletedPlayer = await context.Players.FindAsync(playerID);
                 context.Players.Remove(deletedPlayer);
+                int hostPlayerID;
 
                 if (deletedPlayer.IsHost)
                 {
                     // Set other room host
-                    context.Players.First(p => p.RoomID == deletedPlayer.RoomID)
-                        .IsHost = true;
+                    var newHost = context.Players.First(p => p.RoomID == deletedPlayer.RoomID);
+                    newHost.IsHost = true;
+                    hostPlayerID = newHost.ID;
+                } else
+                {
+                    // -1 indicates that the host is still the same
+                    hostPlayerID = -1;
                 }
 
                 await context.SaveChangesAsync();
@@ -117,8 +122,9 @@ namespace Nous_Tale_API.Controllers
 
                 // Notify player exited
                 await Clients.Group($"room{deletedPlayer.RoomID}")
-                    .PlayerExited(playerID);
+                    .PlayerExited(playerID, hostPlayerID);
             }
+            
         }
     }
 }

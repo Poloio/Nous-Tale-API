@@ -10,7 +10,7 @@ namespace Nous_Tale_API.Controllers
     {
         // Room methods
         Task ReturnToMenu();
-        Task PlayerExited(int playerID);
+        Task PlayerExited(int playerID, int hostPlayerID);
         Task PlayerEntered(Player playerID);
     }
 }
