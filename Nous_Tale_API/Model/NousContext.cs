@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿ using Microsoft.EntityFrameworkCore;
 using Nous_Tale_API.Model.Entities;
 using Microsoft.Extensions.Configuration;
 

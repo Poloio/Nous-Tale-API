@@ -51,17 +51,18 @@ namespace Nous_Tale_API.Controllers
             return roomCode;
         }
 
-        public async Task<List<PlayerVM>> EnterRoom(string playerName, string roomCode)
+        public async Task<List<PlayerVM>> EnterRoom(string playerName, string playerEmoji, string roomId)
         {
             using (var dbContext = new NousContext())
             {
                 // Create and add caller player
 
-                var targetRoom = dbContext.Rooms.First(r => r.Code == roomCode);
+                var targetRoom = await dbContext.Rooms.FindAsync(roomId);
 
                 var newPlayer = new Player()
                 {
                     Name = playerName,
+                    Emoji = playerEmoji,
                     RoomID = targetRoom.ID,
                     IsHost = targetRoom.Players == null || targetRoom.Players.Count() == 0
                 };
@@ -70,8 +71,10 @@ namespace Nous_Tale_API.Controllers
                 await dbContext.SaveChangesAsync();
 
                 // Notify group that player entered
-                await Clients.Group($"room{roomCode}")
+                await Clients.Group($"room{roomId}")
                     .PlayerEntered(newPlayer);
+
+                await Groups.AddToGroupAsync(Context.ConnectionId, $"room{roomId}");
 
                 // VM to avoid circular references
                 var vmList = new List<PlayerVM>();
@@ -81,6 +84,7 @@ namespace Nous_Tale_API.Controllers
                     {
                         Name = player.Name,
                         RoomID = player.ID,
+                        Emoji = player.Emoji,
                         ID = player.ID,
                         IsHost = player.IsHost
                     };
@@ -89,11 +93,6 @@ namespace Nous_Tale_API.Controllers
                 return vmList;
             }
          }
-
-        public async Task ConnectToGroup(string roomCode)
-        {
-            await Groups.AddToGroupAsync(Context.ConnectionId, $"room{roomCode}");
-        }
 
         public async Task ExitRoom(int playerID)
         {
@@ -120,6 +119,8 @@ namespace Nous_Tale_API.Controllers
 
                 await Clients.Caller.ReturnToMenu();
 
+                await Groups.RemoveFromGroupAsync(Context.ConnectionId
+                    , $"room{deletedPlayer.RoomID}");
                 // Notify player exited
                 await Clients.Group($"room{deletedPlayer.RoomID}")
                     .PlayerExited(playerID, hostPlayerID);

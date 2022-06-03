@@ -4,9 +4,10 @@ namespace Nous_Tale_API.Model.Entities
 {
     public class Player
     {
-        public int ID { get; set; }
-        public string Name { get; set; }
+        public int ID { get; init; }
+        public string Name { get; init; }
         public bool IsHost { get; set; }
+        public string Emoji { get; init; }
         // public Color ...
 
         public int RoomID { get; set; }

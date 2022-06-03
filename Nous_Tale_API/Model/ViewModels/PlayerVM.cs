@@ -7,6 +7,7 @@
         public bool IsHost { get; set; }
         // public Color ...
 
+        public string Emoji { get; set; }
         public int RoomID { get; set; }
     }
 }
