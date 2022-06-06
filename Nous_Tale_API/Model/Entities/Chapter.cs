@@ -9,7 +9,7 @@
         public string Text { get; set; }
         // Mood?
 
-        public Tale Tale { get; set; }
-        public Player Player { get; set; }
+        public virtual Tale Tale { get; set; }
+        public virtual Player Player { get; set; }
     }
 }

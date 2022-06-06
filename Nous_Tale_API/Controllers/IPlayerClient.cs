@@ -9,8 +9,8 @@ namespace Nous_Tale_API.Controllers
     public interface IPlayerClient
     {
         // Room methods
-        Task ReturnToMenu();
         Task PlayerExited(int playerID, int hostPlayerID);
         Task PlayerEntered(Player player);
+        Task ReadyCountChanged(int readyCount);
     }
 }

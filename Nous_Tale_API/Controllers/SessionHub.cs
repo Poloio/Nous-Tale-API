@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.Cors;
+using Microsoft.AspNetCore.SignalR;
 using Newtonsoft.Json;
 using Nous_Tale_API.Model;
 using Nous_Tale_API.Model.Entities;
@@ -41,7 +42,8 @@ namespace Nous_Tale_API.Controllers
                     Password = password,
                     IsPrivate = password != null,
                     MaxPlayers = maxPlayers,
-                    Code = GenerateUniqueRoomCode()
+                    Code = GenerateUniqueRoomCode(),
+                    ReadyCount = 0
                 };
 
                 await rooms.AddAsync(newRoom);
@@ -51,7 +53,27 @@ namespace Nous_Tale_API.Controllers
             return roomCode;
         }
 
-        public async Task<List<PlayerVM>> EnterRoom(string playerName, string playerEmoji, string roomId)
+        public Room GetRoomFromCode(string roomCode)
+        {
+            Room targetRoom;
+            using (var dbContext = new NousContext())
+            {
+                targetRoom = dbContext.Rooms.Single(r => r.Code == roomCode);
+            }
+            return targetRoom;
+        }
+
+        public bool RoomExists(string roomCode)
+        {
+            bool exists = false;
+            using (var dbContext = new NousContext())
+            {
+                exists = dbContext.Rooms.Any(r => r.Code == roomCode);
+            }
+            return exists;
+        }
+
+        public async Task<List<PlayerVM>> EnterRoom(string playerName, string playerEmoji, int roomId)
         {
             using (var dbContext = new NousContext())
             {
@@ -117,8 +139,6 @@ namespace Nous_Tale_API.Controllers
 
                 await context.SaveChangesAsync();
 
-                await Clients.Caller.ReturnToMenu();
-
                 await Groups.RemoveFromGroupAsync(Context.ConnectionId
                     , $"room{deletedPlayer.RoomID}");
                 // Notify player exited
@@ -126,6 +146,23 @@ namespace Nous_Tale_API.Controllers
                     .PlayerExited(playerID, hostPlayerID);
             }
             
+        }
+
+        public async Task ToggleReady(bool isReady, int roomID)
+        {
+            using (var dbContext = new NousContext())
+            {
+                var room = await dbContext.Rooms.FindAsync(roomID);
+                if (isReady)
+                    room.ReadyCount++;
+                else
+                    room.ReadyCount--;
+
+                await dbContext.SaveChangesAsync();
+
+                await Clients.Group($"room{roomID}")
+                    .ReadyCountChanged(room.ReadyCount);
+            }
         }
     }
 }

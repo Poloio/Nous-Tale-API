@@ -8,7 +8,7 @@ namespace Nous_Tale_API.Model.Entities
         public int RoomID { get; set; }
         public string Title { get; set; }
 
-        public Room Room { get; set; }
-        public ICollection<Chapter> Chapters { get; set; }
+        public virtual Room Room { get; set; }
+        public virtual List<Chapter> Chapters { get; set; }
     }
 }

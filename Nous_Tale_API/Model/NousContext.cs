@@ -1,16 +1,22 @@
 ﻿ using Microsoft.EntityFrameworkCore;
 using Nous_Tale_API.Model.Entities;
 using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace Nous_Tale_API.Model
 {
     public class NousContext : DbContext
     {
         protected override void OnConfiguring(DbContextOptionsBuilder options)
-            => options.UseSqlServer("Server=HOESMACHINE;Database=NousTaleDB;User Id=apiuser;Password=080899_Ap;Integrated Security = False");
-
+        {
+            options
+                .UseSqlServer("Server=HOESMACHINE;Database=NousTaleDB;User Id=apiuser;Password=080899_Ap;Integrated Security = False")
+                // AZURE=> options.UseSqlServer("Server=tcp:poloioserver.database.windows.net,1433;Initial Catalog=PoloioDB;Persist Security Info=False;User ID=Poloio;Password=Mimamamemima_;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;");
+                .UseLazyLoadingProxies()
+                .ConfigureWarnings(b => b.Ignore(CoreEventId.LazyLoadOnDisposedContextWarning));
+        }
         public DbSet<Chapter> Chapters { get; set; }
-        public DbSet<Player> Players { get; set; }
+        public DbSet<Player> Players { get; set; } 
         public DbSet<Room> Rooms { get; set; }
         public DbSet<Tale> Tales { get; set; }
 
@@ -60,7 +66,6 @@ namespace Nous_Tale_API.Model
             {
                 room.HasMany(r => r.Players)
                 .WithOne(p => p.Room);
-
                 room.HasMany(r => r.Tales)
                 .WithOne(t => t.Room);
             });

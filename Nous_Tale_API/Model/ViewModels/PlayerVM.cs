@@ -5,7 +5,7 @@
         public int ID { get; set; }
         public string Name { get; set; }
         public bool IsHost { get; set; }
-        // public Color ...
+        // public Color ... ? 
 
         public string Emoji { get; set; }
         public int RoomID { get; set; }
