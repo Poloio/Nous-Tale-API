@@ -114,7 +114,7 @@ namespace Nous_Tale_API.Controllers
                 }
                 return vmList;
             }
-         }
+        }
 
         public async Task ExitRoom(int playerID)
         {
@@ -131,7 +131,8 @@ namespace Nous_Tale_API.Controllers
                     var newHost = context.Players.First(p => p.RoomID == deletedPlayer.RoomID);
                     newHost.IsHost = true;
                     hostPlayerID = newHost.ID;
-                } else
+                }
+                else
                 {
                     // -1 indicates that the host is still the same
                     hostPlayerID = -1;
@@ -145,7 +146,7 @@ namespace Nous_Tale_API.Controllers
                 await Clients.Group($"room{deletedPlayer.RoomID}")
                     .PlayerExited(playerID, hostPlayerID);
             }
-            
+
         }
 
         public async Task ToggleReady(bool isReady, int roomID)
@@ -163,6 +164,67 @@ namespace Nous_Tale_API.Controllers
                 await Clients.Group($"room{roomID}")
                     .ReadyCountChanged(room.ReadyCount);
             }
+        }
+
+
+        public async Task CreateTales(int roomId)
+        {
+            var returnList = new List<Tale>();
+            using (var dbContext = new NousContext())
+            {
+                var targetRoom = await dbContext.Rooms.FindAsync(roomId);
+                // Create the tales
+                foreach (var player in targetRoom.Players)
+                {
+                    await dbContext.Tales.AddAsync(new Tale()
+                    {
+                        RoomID = targetRoom.ID,
+                        Chapters = new List<Chapter>(targetRoom.Players.Count)
+                    });
+                }
+                await dbContext.SaveChangesAsync();
+
+                // Set a mood for each chapter
+                Array enumValues = Enum.GetValues(typeof(EChapterMood));
+                Random random = new Random();
+                foreach (var tale in targetRoom.Tales)
+                {
+                    foreach (var chapter in tale.Chapters)
+                    {
+                        chapter.Mood = (EChapterMood)enumValues.GetValue(random.Next(enumValues.Length));
+                    }
+                }
+                await dbContext.SaveChangesAsync();
+                returnList = targetRoom.Tales;                
+            }
+            await Clients.Group($"room{roomId}").TalesCreated(returnList);
+        }
+
+        public RoomWithPlayers GetRoomAndPlayers(string roomCode)
+        {
+            var vm = new RoomWithPlayers()
+            {
+                Players = new List<PlayerVM>()
+            };
+
+            using (var dbContext = new NousContext())
+            {
+                vm.Room = dbContext.Rooms.Single(r => r.Code == roomCode);
+                // VM to avoid circular references
+                foreach (var player in vm.Room.Players)
+                {
+                    var newVmPlayer = new PlayerVM()
+                    {
+                        Name = player.Name,
+                        RoomID = player.ID,
+                        Emoji = player.Emoji,
+                        ID = player.ID,
+                        IsHost = player.IsHost
+                    };
+                    vm.Players.Add(newVmPlayer);
+                }
+            }
+            return vm;
         }
     }
 }
