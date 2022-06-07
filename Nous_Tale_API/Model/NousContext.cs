@@ -10,7 +10,8 @@ namespace Nous_Tale_API.Model
         protected override void OnConfiguring(DbContextOptionsBuilder options)
         {
             options
-                .UseSqlServer("Server=HOESMACHINE;Database=NousTaleDB;User Id=apiuser;Password=080899_Ap;Integrated Security = False")                .UseLazyLoadingProxies()
+                .UseSqlServer("Server=tcp:poloioserver.database.windows.net,1433;Initial Catalog=PoloioDB;Persist Security Info=False;User ID=Poloio;Password=Mimamamemima_;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;")                
+                .UseLazyLoadingProxies()
                 .ConfigureWarnings(b => b.Ignore(CoreEventId.LazyLoadOnDisposedContextWarning));
         }
         public DbSet<Chapter> Chapters { get; set; }

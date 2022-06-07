@@ -10,7 +10,8 @@ namespace Nous_Tale_API.Model.Entities
         public bool GameHasStarted { get; set; }
         public string Password { get; set; }
         public int MaxPlayers { get; set; }
-        public int ReadyCount { get; set; }
+        public int ReadyCount { get; set; } 
+        public int RoundReadyCount { get; set; }
 
         public virtual List<Tale> Tales { get; set; }
         public virtual List<Player> Players { get; set; }

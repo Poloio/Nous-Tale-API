@@ -1,15 +1,14 @@
-﻿namespace Nous_Tale_API.Model.Entities
+﻿using Nous_Tale_API.Model.Entities;
+
+namespace Nous_Tale_API.Model.ViewModels
 {
-    public class Chapter
+    public class ChapterVM
     {
         public int ID { get; set; }
         public int TaleID { get; set; }
         public int? PlayerID { get; set; }
         public int OrderNo { get; set; }
         public string Text { get; set; }
-        public EChapterMood Mood { get; set; }
-
-        public virtual Tale Tale { get; set; }
-        public virtual Player Player { get; set; }
+        public string Mood { get; set; }
     }
 }

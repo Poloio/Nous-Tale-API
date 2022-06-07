@@ -13,6 +13,7 @@ namespace Nous_Tale_API.Controllers
 {
     public class SessionHub : Hub<IPlayerClient>
     {
+        #region Lobbying methods
         private string GenerateUniqueRoomCode()
         {
             var random = new Random();
@@ -86,7 +87,8 @@ namespace Nous_Tale_API.Controllers
                     Name = playerName,
                     Emoji = playerEmoji,
                     RoomID = targetRoom.ID,
-                    IsHost = targetRoom.Players == null || targetRoom.Players.Count() == 0
+                    IsHost = targetRoom.Players == null || targetRoom.Players.Count() == 0,
+                    ConnectionID = Context.ConnectionId
                 };
 
                 await dbContext.Players.AddAsync(newPlayer);
@@ -123,19 +125,22 @@ namespace Nous_Tale_API.Controllers
                 // Delete player
                 var deletedPlayer = await context.Players.FindAsync(playerID);
                 context.Players.Remove(deletedPlayer);
-                int hostPlayerID;
+                int hostPlayerID = -1;// -1 indicates that the host is still the same
 
                 if (deletedPlayer.IsHost)
                 {
-                    // Set other room host
-                    var newHost = context.Players.First(p => p.RoomID == deletedPlayer.RoomID);
-                    newHost.IsHost = true;
-                    hostPlayerID = newHost.ID;
-                }
-                else
-                {
-                    // -1 indicates that the host is still the same
-                    hostPlayerID = -1;
+                    if (deletedPlayer.Room.Players.Count > 1)
+                    {
+                        // Set other room host
+                        var newHost = context.Players.First(p => p.RoomID == deletedPlayer.RoomID);
+                        newHost.IsHost = true;
+                        hostPlayerID = newHost.ID;
+                    } else
+                    {
+                        // Remove room
+                        context.Remove(deletedPlayer.Room);
+                        context.RemoveRange(deletedPlayer.Room.Players);
+                    }
                 }
 
                 await context.SaveChangesAsync();
@@ -166,40 +171,6 @@ namespace Nous_Tale_API.Controllers
             }
         }
 
-
-        public async Task CreateTales(int roomId)
-        {
-            var returnList = new List<Tale>();
-            using (var dbContext = new NousContext())
-            {
-                var targetRoom = await dbContext.Rooms.FindAsync(roomId);
-                // Create the tales
-                foreach (var player in targetRoom.Players)
-                {
-                    await dbContext.Tales.AddAsync(new Tale()
-                    {
-                        RoomID = targetRoom.ID,
-                        Chapters = new List<Chapter>(targetRoom.Players.Count)
-                    });
-                }
-                await dbContext.SaveChangesAsync();
-
-                // Set a mood for each chapter
-                Array enumValues = Enum.GetValues(typeof(EChapterMood));
-                Random random = new Random();
-                foreach (var tale in targetRoom.Tales)
-                {
-                    foreach (var chapter in tale.Chapters)
-                    {
-                        chapter.Mood = (EChapterMood)enumValues.GetValue(random.Next(enumValues.Length));
-                    }
-                }
-                await dbContext.SaveChangesAsync();
-                returnList = targetRoom.Tales;                
-            }
-            await Clients.Group($"room{roomId}").TalesCreated(returnList);
-        }
-
         public RoomWithPlayers GetRoomAndPlayers(string roomCode)
         {
             var vm = new RoomWithPlayers()
@@ -226,5 +197,108 @@ namespace Nous_Tale_API.Controllers
             }
             return vm;
         }
+        #endregion
+
+        #region Game methods
+        public async Task CreateTales(int roomId)
+        {
+            var returnList = new List<TaleVM>();
+            using (var dbContext = new NousContext())
+            {
+                var targetRoom = await dbContext.Rooms.FindAsync(roomId);
+                // Create the tales
+                foreach (var player in targetRoom.Players)
+                {
+                    await dbContext.Tales.AddAsync(new Tale()
+                    {
+                        RoomID = targetRoom.ID,
+                        Chapters = new List<Chapter>(targetRoom.Players.Count),
+                        Title = "" // Avoid undefined in TS
+                    });
+                }
+                await dbContext.SaveChangesAsync();
+
+                // Set a mood for each chapter
+                Array enumValues = Enum.GetValues(typeof(EChapterMood));
+                Random random = new Random();
+                foreach (var tale in targetRoom.Tales)
+                {
+                    foreach (var chapter in tale.Chapters)
+                    {
+                        chapter.Mood = (EChapterMood)enumValues.GetValue(random.Next(enumValues.Length));
+                    }
+                }
+                await dbContext.SaveChangesAsync();
+
+                // Set viewmodel to call client
+                foreach (var tale in targetRoom.Tales)
+                {
+                    var taleVm = new TaleVM()
+                    {
+                        ID = tale.ID,
+                        RoomID = tale.RoomID,
+                        Title = tale.Title,
+                        Chapters = new List<ChapterVM>()
+                    };
+
+                    foreach (var chapter in tale.Chapters)
+                    {
+                        taleVm.Chapters.Add(new ChapterVM()
+                        {
+                            ID = chapter.ID,
+                            TaleID = chapter.TaleID,
+                            PlayerID = chapter.PlayerID,
+                            Text = chapter.Text,
+                            Mood = chapter.Mood.ToString()
+                        });
+                    }
+
+                    returnList.Add(taleVm);
+                }
+            }
+            await Clients.Group($"room{roomId}").TalesCreated(returnList);
+        }
+
+        public async Task RoundReadyChanged(int roomId, bool isReady)
+        {
+            using (var dbContext = new NousContext())
+            {
+                var targetRoom = await dbContext.Rooms.FindAsync(roomId);
+                if (isReady) targetRoom.RoundReadyCount++;
+                    else targetRoom.RoundReadyCount--;
+                
+                await dbContext.SaveChangesAsync();
+                // Clients don't need to know when one player is ready
+                if (targetRoom.RoundReadyCount == targetRoom.Players.Count) 
+                    await Clients.Group($"room{roomId}").EveryoneIsReady();
+            }
+            
+        }
+
+        public async Task UpdateTale(TaleVM updatedTale, int taleIndex)
+        {
+            using (var dbContext = new NousContext())
+            {
+                var actualTale = await dbContext.Tales.FindAsync(updatedTale.ID);
+                dbContext.Update(actualTale);
+                await dbContext.SaveChangesAsync();
+            }
+            await Clients.OthersInGroup($"room{updatedTale.RoomID}").TaleWasUpdated(updatedTale, taleIndex);
+        }
+        #endregion
+
+        #region Connection management
+        
+        public async override Task<Task> OnDisconnectedAsync(Exception exception)
+        {
+            using (var dbContext = new NousContext())
+            {
+                var disconnectedPlayer = dbContext.Players.Single(p => p.ConnectionID == Context.ConnectionId);
+                await ExitRoom(disconnectedPlayer.ID);
+                await dbContext.SaveChangesAsync();
+            }
+            return base.OnDisconnectedAsync(exception);
+        }
+        #endregion
     }
 }
